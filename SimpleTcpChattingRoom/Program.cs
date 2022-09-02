@@ -100,54 +100,6 @@ namespace ConsoleServer
 
         }
 
-        //void AcceptClient()
-        //{
-        //    TcpClient tmpTcpClient;
-        //    while (true)
-        //    {
-        //        try
-        //        {
-        //            //建立與客戶端的連線
-        //            tmpTcpClient = tcpListener.AcceptTcpClient();
-
-        //            ClientSet[tmpTcpClient.Client.RemoteEndPoint.ToString()] = tmpTcpClient;
-
-        //            if (tmpTcpClient.Connected)
-        //            {
-        //                Console.WriteLine("連線成功!");
-        //                string msg = "server connection ok";
-
-        //                var msgbte = Encoding.ASCII.GetBytes(msg);
-        //                tmpTcpClient.Client.Send(msgbte);
-
-        //                Task.Run(new Action(() =>
-        //                {
-        //                    while (true)
-        //                    {
-        //                        int bteNum = tmpTcpClient.Client.Receive(bteRecv);
-
-        //                        Console.WriteLine(Encoding.UTF8.GetString(bteRecv, 0, bteNum));
-        //                    }
-        //                }));
-        //                Task.Run(new Action(() =>
-        //                {
-        //                    while (true)
-        //                    {
-        //                        string str = Console.ReadLine();
-
-        //                        tmpTcpClient.Client.Send(Encoding.UTF8.GetBytes(str));
-        //                    }
-        //                }));
-
-        //            }
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            Console.WriteLine(ex.Message);
-        //            Console.Read();
-        //        }
-        //    }
-        //}
 
         void SendMsgQueueLoop()
         {
@@ -163,17 +115,87 @@ namespace ConsoleServer
             });
         }
 
-        void hostChatLoop()
+        void hostChattingMode()
         {
+            string str="";
+            Console.WriteLine("host chatting mode starts.....");
+            while(str!="exit")
+            {
+                str = Console.ReadLine();
+                if (str == "exit")
+                    break;
+                 str = ChatMsg.OutMsg("Host", str);
+                 msgQueue.Enqueue(str);
+            }
+            Console.WriteLine("host leaving chatting mode.....");
+
+        }
+
+        void displayClientsStatus()
+        {
+            if (ClientSet.Count == 0)
+                Console.WriteLine("No clients found...");
+
+            foreach(var client in ClientSet)
+            {
+                Console.WriteLine(string.Format("IP Port:{0} IsConneted:{1}", client.Key, client.Value.Client.Connected));
+            }
+        }
+
+        void kickClient()
+        {
+            Console.WriteLine("key in the client ip for disconnection");
+            var key = Console.ReadLine();
+            if (ClientSet.ContainsKey(key))
+                ClientSet[key].Client.Disconnect(true);
+            else
+                Console.WriteLine(string.Format("{0} not found. Unable to kick out such IP", key));
+
+        }
+
+        void kickAllClients()
+        {
+            foreach (var client in ClientSet)
+                try
+                {
+                    if (client.Value.Client.Connected)
+                        client.Value.Client.Disconnect(true);
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+        }
+           
+
+        void hostCtrlLoop()
+        {
+            
             Task.Run(new Action(() =>
             {
 
                 while (true)
                 {
                     string str = Console.ReadLine();
-                    str = ChatMsg.OutMsg("Host", str);
-
-                    msgQueue.Enqueue(str);
+                    switch (str)
+                    {
+                        case "chat":
+                            hostChattingMode();
+                            break;
+                        case "clients":
+                            displayClientsStatus();
+                            break;
+                        case "kick":
+                            kickClient();
+                            break;
+                        case "kickAll":
+                            kickAllClients();
+                            break;
+                        default:
+                            Console.WriteLine("Invalid command. Type chat, clients, kick or kickAll command");
+                            break;
+                    }
+                  
                 }
             }));
         }
@@ -197,7 +219,12 @@ namespace ConsoleServer
                         msgQueue.Enqueue(msgStr);
                     }
                 }
-                catch(Exception ex)
+                catch(System.Net.Sockets.SocketException exs)
+                {
+                    Console.WriteLine(string.Format("Socket exception:{1} \r\nClient IP {0} ", MyTcpClient.Client.RemoteEndPoint.ToString(), exs.SocketErrorCode));
+
+                }
+                catch (Exception ex)
                 {
                     Console.WriteLine(string.Format("error message:{0}", msgStr));
                     Console.WriteLine(ex.ToString());
@@ -208,7 +235,7 @@ namespace ConsoleServer
         public void run()
         {
             SendMsgQueueLoop();
-            hostChatLoop();
+            hostCtrlLoop();
             tcpListener = new TcpListener(ServerIp, port);
             Console.WriteLine("Server ip:" + ServerIp.ToString());
             tcpListener.Start();
