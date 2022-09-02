@@ -87,8 +87,16 @@ namespace ConsoleServer
             //Send to client
             foreach (var client in Clients)
                 if (client.Connected)
-                    client.Client.Send(msgbte);
-
+                {
+                    try
+                    {
+                        client.Client.Send(msgbte);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.ToString());
+                    }
+                }
 
         }
 
@@ -174,17 +182,28 @@ namespace ConsoleServer
         {
             Task.Run(new Action(() =>
             {
-                byte[] bteRecv = new byte[1024];
-                while (true)
+                string msgStr="";
+                try
                 {
-                    int bteNum = MyTcpClient.Client.Receive(bteRecv);
-                    string msgStr = Encoding.UTF8.GetString(bteRecv, 0, bteNum);
-                    if (msgStr == "\r\n" || msgStr == "\n") //不讓換行洗版
-                        continue;
-                    msgStr = ChatMsg.OutMsg(MyTcpClient.Client.RemoteEndPoint.ToString(), msgStr);
-                    msgQueue.Enqueue(msgStr);
+                    byte[] bteRecv = new byte[1024];
+                    while (true)
+                    {
+
+                        int bteNum = MyTcpClient.Client.Receive(bteRecv);
+                        msgStr = Encoding.UTF8.GetString(bteRecv, 0, bteNum);
+                        if (msgStr == "\r\n" || msgStr == "\n" || msgStr==string.Empty) //不讓換行洗版
+                            continue;
+                        msgStr = ChatMsg.OutMsg(MyTcpClient.Client.RemoteEndPoint.ToString(), msgStr);
+                        msgQueue.Enqueue(msgStr);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(string.Format("error message:{0}", msgStr));
+                    Console.WriteLine(ex.ToString());
                 }
             }));
+
         }
         public void run()
         {
@@ -204,8 +223,13 @@ namespace ConsoleServer
                 if (tmpTcpClient.Connected) //Once connected, notfiy the client and start managing each client message
                 {
                     Console.WriteLine(string.Format("=====client {0}  connected=====", tmpTcpClient.Client.RemoteEndPoint.ToString()));
-                    var msgbte = Encoding.ASCII.GetBytes("server connection ok, Welcome to Moo's chatting room\r\n");
+                    string welcomeMsg = "server connection ok, Welcome to moo chatting room\r\n";
+                    welcomeMsg = string.Format("{0}\r\nyour ip address:{1}\r\n",welcomeMsg, tmpTcpClient.Client.RemoteEndPoint.ToString());
+                    var msgbte = Encoding.ASCII.GetBytes(welcomeMsg);
+
                     tmpTcpClient.Client.Send(msgbte);
+
+
                     ManageClientMsg(tmpTcpClient);
                 }
             }
